@@ -19,3 +19,5 @@ OpenCV_gpu
 
 
 Examples of use of CUDA with OpenCV
+
+Compilation : `nvcc kernel.cu simple_kernelopencv.cu ``pkg-config --cflags --libs opencv`` -arch=sm_13`
