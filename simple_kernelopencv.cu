@@ -15,7 +15,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-
+//To do : Asynchronous version
 
 #include <iostream>
 #include <opencv2/opencv_modules.hpp>
@@ -36,15 +36,10 @@ using namespace cv;
 
 #include "kernel.h"
 
-//nvcc kernel.cu testgpu.cu -o mygpu.ex `pkg-config --cflags --libs opencv`
+//nvcc kernel.cu simple_kernelopencv.cu -o mygpu.ex `pkg-config --cflags --libs opencv` -arch=sm_13
 
 
 uchar3 value_red[2] = {make_uchar3(170,110,90),make_uchar3(179,255,255)};
-uchar3 value_blue[2] = {make_uchar3(100,120,50),make_uchar3(130,255,255)};
-uchar3 value_green[2] =  {make_uchar3(35,120,50),make_uchar3(80,255,255)};
-uchar3 value_yellow[2] = {make_uchar3(20,120,70),make_uchar3(35,255,255)};
-uchar3 value_white[2] = { make_uchar3(0,0,150),make_uchar3(179,30,255)};
-uchar3 value_black[2] = {make_uchar3(0,0,0),make_uchar3(179,225,70)};
 
 
 void usage(int argc,char **argv){
@@ -59,42 +54,45 @@ int main(int argc, char** argv)
     usage(argc,argv);
     setUseOptimized(true);
 
-    //namedWindow("GPU",WINDOW_OPENGL);
-
     gpu::setGlDevice();
 
-    Mat frame;
-    VideoCapture capture(argv[1]);
+    //Get the video on GPU (gpu video reader)
+    gpu::GpuMat frame;
+    gpu::VideoReader_GPU d_reader(argv[1]);
+    gpu::GpuMat resized;
+    gpu::GpuMat hsv;
     int counter = 0;
 
-    if(!capture.isOpened()){
-        cerr<<"Error while reading file";
-        exit(-1);
-    }
-    while(true){
-        capture>>frame;
-        if(frame.empty())
-            break;
-        gpu::GpuMat gpuframe(frame);
-        gpu::GpuMat resized;
-        gpu::GpuMat hsv;
-        gpu::resize(gpuframe, resized, Size(0,0),RESIZEF,RESIZEF);
-        gpu::GpuMat mask_red(resized.rows,resized.cols,resized.type());
-        
-        //mask_red.setTo(Scalar::all(0));
-        //if(counter>=50){
-            
-            gpu::cvtColor(resized,hsv,CV_BGR2HSV);
-            
-            mygpuinrange(resized.cols,resized.rows,gpu::PtrStep<uchar3>(resized),
-                            gpu::PtrStep<uchar3>(mask_red),value_red[0],value_red[1]);
+    //Gpu matrix allocation
+    gpu::GpuMat mask_red(0,0,CV_8U);
 
-            Mat resframe(mask_red);
-        //}
+    while(true){
+        //Read frame
+        if (!d_reader.read(frame))
+            break;
+
+        //Resize the image on the GPU
+        gpu::resize(frame, resized, Size(0,0),RESIZEF,RESIZEF);
+
+        //Allocate GPU memory if necessary
+        gpu::ensureSizeIsEnough(resized.rows,resized.cols,CV_8U,mask_red);  
+
+        //Convert the RGB image in HSV values
+        gpu::cvtColor(resized,hsv,CV_BGR2HSV);
+        
+        //Launch CUDA kernel
+        mygpuinrange(hsv,mask_red,value_red[0],value_red[1]);
+
+        //Convert back to RGB
+        gpu::GpuMat maskrgb(mask_red);        
+        gpu::cvtColor( mask_red, maskrgb, CV_GRAY2BGR );
+
+        //Get image from GPU to CPU
+        Mat resframe(maskrgb);
 
         imshow("GPU",resframe);
         counter++;
-        if(waitKey(1)>0 )
+        if(waitKey(30)>0 )
             break;
     }
 
