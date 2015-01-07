@@ -32,12 +32,12 @@ using namespace cv;
 
 
 void mygpuinrange(gpu::GpuMat &src,gpu::GpuMat &dst,uchar3 min, uchar3 max){
-    dim3 threadsPerBlock(BLOCKSIZE,BLOCKSIZE);
+    dim3 threadsPerBlock(16,16);//16*16 = 256 threads per block
     int nbblocks1 = (int)ceil((float)src.cols/threadsPerBlock.x);
     int nbblocks2 = (int)ceil((float)src.rows/threadsPerBlock.y);
     dim3 numblocks(nbblocks1,nbblocks2);
 
-	GpuinRange<<<threadsPerBlock,numblocks>>>(gpu::PtrStep<uchar3>(src),gpu::PtrStep<uchar>(dst),src.cols,src.rows,min,max);
+	GpuinRange<<<numblocks,threadsPerBlock>>>(gpu::PtrStep<uchar3>(src),gpu::PtrStep<uchar>(dst),src.cols,src.rows,min,max);
 }
 
 __global__ void GpuinRange(gpu::PtrStep<uchar3> src,gpu::PtrStep<uchar> dst,int width,int height,uchar3 valmin, uchar3 valmax){
