@@ -74,6 +74,10 @@ int main(int argc, char** argv)
         //Resize the image on the GPU
         gpu::resize(frame, resized, Size(0,0),RESIZEF,RESIZEF);
 
+        //We use uchar3 not uchar4 frame
+        gpu::GpuMat resized2;
+        gpu::cvtColor( resized,resized2, CV_BGRA2BGR );
+
         //Allocate GPU memory if necessary
         gpu::ensureSizeIsEnough(resized.rows,resized.cols,CV_8U,mask_red);  
 
@@ -87,8 +91,12 @@ int main(int argc, char** argv)
         gpu::GpuMat maskrgb(mask_red);        
         gpu::cvtColor( mask_red, maskrgb, CV_GRAY2BGR );
 
+        //Compute the RGB frame with only red mask
+	    gpu::GpuMat result;
+        gpu::bitwise_and(resized2,maskrgb,result);
+
         //Get image from GPU to CPU
-        Mat resframe(maskrgb);
+        Mat resframe(result);
 
         imshow("GPU",resframe);
         counter++;
